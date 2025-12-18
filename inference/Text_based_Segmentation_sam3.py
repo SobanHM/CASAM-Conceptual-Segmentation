@@ -1,0 +1,92 @@
+import torch
+import numpy as np
+from PIL import Image
+from pathlib import Path
+from transformers import Sam3Processor, Sam3Model  # Using specific SAM3 classes
+
+# --- SETUP ---
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+BASE_DIR = Path(__file__).resolve().parent.parent
+IMAGE_PATH = BASE_DIR / "data" / "raw" / "image_007.jpg"
+OUTPUT_DIR = BASE_DIR / "data" / "processed"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+if not IMAGE_PATH.exists():
+    raise FileNotFoundError(f"Image not found at: {IMAGE_PATH}")
+
+# --- LOAD MODEL & PROCESSOR ---
+print(f"Initializing SAM 3 on {DEVICE}...")
+# We use the processor to handle the text-to-tensor conversion
+processor = Sam3Processor.from_pretrained("facebook/sam3")
+model = Sam3Model.from_pretrained(
+    "facebook/sam3",
+    trust_remote_code=True
+).to(DEVICE)
+
+# --- DEFINE TARGETS ---
+# SAM 3 can understand "Concept Prompts" (noun phrases)
+target_objects = [
+    "glasses",
+    "cycle",
+    "cyclist",
+    "little girl",
+    "boy in red shirt"  # slightly more descriptive for the "red shirt boy"
+]
+
+# --- INFERENCE ---
+image_pil = Image.open(IMAGE_PATH).convert("RGB")
+width, height = image_pil.size
+
+print(f"Running inference on image ({width}x{height})...")
+
+for target in target_objects:
+    print(f" > Segmenting: '{target}'...")
+
+    # 1. Prepare inputs (Image + Text Prompt)
+    inputs = processor(
+        images=image_pil,
+        text=target,
+        return_tensors="pt"
+    ).to(DEVICE)
+
+    # 2. Forward pass
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    # 3. Post-process (Convert raw logits to boolean masks)
+    # This aligns the masks back to the original image size
+    results = processor.post_process_instance_segmentation(
+        outputs,
+        threshold=0.5,  # Confidence threshold
+        mask_threshold=0.5,  # Pixel probability threshold
+        target_sizes=[(height, width)]  # Must be list of tuples
+    )[0]
+
+    # --- SAVE RESULTS ---
+    found_masks = results["masks"]  # Shape: (N, H, W)
+    scores = results["scores"]  # Shape: (N,)
+
+    if len(found_masks) == 0:
+        print(f"   [!] No objects found for '{target}'")
+        continue
+
+    # Combine all instances of this object into one file (optional)
+    # Or save them individually. Here we save the best one for the object.
+
+    # Let's save the highest scoring mask for this text prompt
+    best_idx = scores.argmax().item()
+    best_mask = found_masks[best_idx].cpu().numpy()  # Boolean array
+    best_score = scores[best_idx].item()
+
+    clean_name = target.replace(" ", "_")
+    filename = OUTPUT_DIR / f"mask_{clean_name}.npy"
+
+    np.save(filename, best_mask)
+
+    # Optional: Save a visual debug image too
+    # mask_img = Image.fromarray((best_mask * 255).astype(np.uint8))
+    # mask_img.save(OUTPUT_DIR / f"view_{clean_name}.png")
+
+    print(f"   - Saved mask to {filename.name} (Conf: {best_score:.3f})")
+
+print(f"\nProcess complete. Check: {OUTPUT_DIR}")
