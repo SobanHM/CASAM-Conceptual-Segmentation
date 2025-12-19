@@ -166,13 +166,28 @@ with gr.Blocks(title="SAM 3 Validation Studio") as demo:
 
             t2_btn.click(run_validation, inputs=[t2_editor, t2_text], outputs=[t2_output_md])
 
-    gr.HTML("""
-            <div style="text-align: center; margin-top: 20px; color: #555;">
-                <p>Introduced by <b>Soban Hussain</b></p>
-            </div>
-            """
-    )
+    gr.HTML(
+        """
+        <div style="
+            text-align: center; 
+            margin-top: 25px; 
+            padding: 15px; 
+            background: linear-gradient(90deg, #f0f4ff 0%, #ffffff 50%, #f0f4ff 100%); 
+            border-radius: 12px; 
+            border: 1px solid #e0e6ed;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
 
+            <p style="margin: 0; font-size: 16px; color: #2d3748;">
+                Designed & Developed by <b style="color: #4a5568;">Soban Hussan</b>
+            </p>
+
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #a0aec0; letter-spacing: 1px;">
+                POWERED BY SAM 3 • COMPUTER VISION
+            </p>
+        </div>
+        """
+    )
 # running ui
 if __name__ == "__main__":
     demo.launch()
